@@ -9,11 +9,16 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     
     <style>
-        /* CSS STYLES - Same as before */
         :root { --primary: #4f46e5; --primary-hover: #4338ca; --bg-color: #f3f4f6; --surface: #ffffff; --text-main: #111827; --text-sub: #6b7280; --border: #e5e7eb; --success: #10b981; --error: #ef4444; --radius: 12px; --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.01); }
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
         body { background-color: var(--bg-color); background-image: radial-gradient(at 0% 0%, hsla(253,16%,7%,0) 0, transparent 50%), radial-gradient(at 50% 0%, hsla(225,39%,30%,0.1) 0, transparent 50%), radial-gradient(at 100% 0%, hsla(339,49%,30%,0) 0, transparent 50%); height: 100vh; display: flex; align-items: center; justify-content: center; color: var(--text-main); }
-        .container { width: 100%; max-width: 600px; background: var(--surface); padding: 40px; border-radius: 24px; box-shadow: var(--shadow); max-height: 90vh; display: flex; flex-direction: column; }
+        .container { width: 100%; max-width: 600px; background: var(--surface); padding: 40px; border-radius: 24px; box-shadow: var(--shadow); max-height: 90vh; display: flex; flex-direction: column; position: relative; }
+        
+        /* NEW: Top Navigation for Login */
+        .top-nav { display: flex; justify-content: flex-end; margin-bottom: 10px; }
+        .login-link { text-decoration: none; color: var(--primary); font-size: 0.9rem; font-weight: 500; padding: 6px 12px; border-radius: 6px; transition: background 0.2s; background: #eef2ff; }
+        .login-link:hover { background: #e0e7ff; }
+
         .header { margin-bottom: 30px; text-align: center; }
         .header h2 { font-weight: 600; font-size: 1.5rem; margin-bottom: 8px; }
         .header p { color: var(--text-sub); font-size: 0.95rem; }
@@ -63,9 +68,14 @@
 <body>
 
     <div class="container">
+        <!-- Login Button Section -->
+        <div class="top-nav">
+            <a href="admin.html" class="login-link">Admin Login</a>
+        </div>
+
         <div class="header">
             <h2>Upload & Share</h2>
-            <p>Upload files to your local server</p>
+            <p>Upload files to your secure private cloud</p>
         </div>
 
         <div class="drop-zone" id="dropZone">
@@ -74,7 +84,7 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
             </svg>
             <div class="drop-text-main">Drag & drop files or <span class="browse-btn">Browse</span></div>
-            <div class="drop-text-sub">Supported: All formats up to 50MB</div>
+            <div class="drop-text-sub">Supported: All formats up to 2GB</div>
         </div>
 
         <ul class="file-list" id="fileList"></ul>
@@ -199,15 +209,12 @@
                 const deleteBtn = el.querySelector('.delete-btn');
                 if(deleteBtn) deleteBtn.remove(); 
 
-                // Create Form Data
                 const formData = new FormData();
                 formData.append('file', fileObj.file);
 
-                // Create AJAX Request
                 const xhr = new XMLHttpRequest();
                 xhr.open('POST', '/api/upload', true);
 
-                // Progress Handler
                 xhr.upload.onprogress = function(e) {
                     if (e.lengthComputable) {
                         const percentComplete = (e.loaded / e.total) * 100;
@@ -215,24 +222,15 @@
                     }
                 };
 
-                // Success/Error Handler
                 xhr.onload = function() {
                     if (xhr.status === 200) {
                         const response = JSON.parse(xhr.responseText);
                         fileObj.status = 'uploaded';
-                        
-                        // Hide progress bar
                         progressBar.style.opacity = '0';
-                        
-                        // Show Link UI
                         const linkArea = el.querySelector('.link-result');
                         linkArea.style.display = 'block';
-
-                        // Configure Open Button
                         const openBtn = el.querySelector('.open-link-btn');
                         openBtn.href = response.url;
-
-                        // Configure Copy Button
                         const copyBtn = el.querySelector('.copy-link-btn');
                         copyBtn.onclick = () => {
                             navigator.clipboard.writeText(response.url).then(() => {
@@ -251,7 +249,6 @@
                         progressBar.style.background = 'var(--error)';
                     }
                 };
-
                 xhr.send(formData);
             });
         }
