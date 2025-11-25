@@ -9,20 +9,30 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // 1. CONFIGURATION
-app.set('trust proxy', 1); // Trust Render
+app.set('trust proxy', 1); // Important for Render HTTPS
 app.use(cors());
-app.use(express.static('public'));
-app.use(express.json()); // Allow reading JSON bodies for login
+app.use(express.static('public')); // Serves index.html, admin.html
+app.use(express.json()); 
 
-// 2. SESSION SETUP (Keeps you logged in)
-app.use(session({
-    secret: process.env.SESSION_SECRET || 'dev-secret-key', // Used to sign the session ID cookie
-    resave: false,
-    saveUninitialized: false,
-    cookie: { secure: false } // Set to true if you have a custom domain with SSL, false works for Render default
+// 2. VIDEO STREAMING FIX (The Magic Change)
+// We use express.static for the uploads folder. 
+// This automatically handles "Range Requests" (required for video scrubbing/loading)
+// and forces the browser to display files (inline) instead of downloading them.
+app.use('/f', express.static(path.join(__dirname, 'uploads'), {
+    setHeaders: (res, filePath) => {
+        res.set('Content-Disposition', 'inline');
+    }
 }));
 
-// 3. STORAGE ENGINE
+// 3. SESSION SETUP
+app.use(session({
+    secret: process.env.SESSION_SECRET || 'dev-secret-key',
+    resave: false,
+    saveUninitialized: false,
+    cookie: { secure: false } // Set to true if you set up a custom domain
+}));
+
+// 4. STORAGE ENGINE
 function generateShortId() {
     return Math.random().toString(36).substring(2, 6);
 }
@@ -45,11 +55,10 @@ const storage = multer.diskStorage({
 
 const upload = multer({ 
     storage: storage, 
-    limits: { fileSize: 2 * 1024 * 1024 * 1024 } 
+    limits: { fileSize: 2 * 1024 * 1024 * 1024 } // 2GB
 });
 
-// 4. AUTHENTICATION MIDDLEWARE
-// This protects the admin routes
+// 5. AUTH MIDDLEWARE
 const requireAuth = (req, res, next) => {
     if (req.session.isAdmin) {
         next();
@@ -63,23 +72,17 @@ const requireAuth = (req, res, next) => {
 // Public: Upload
 app.post('/api/upload', upload.single('file'), (req, res) => {
     if (!req.file) return res.status(400).send('No file uploaded.');
+    
+    // Construct the URL using the server's address
     const protocol = req.headers['x-forwarded-proto'] || req.protocol;
     const fileUrl = `${protocol}://${req.get('host')}/f/${req.file.filename}`;
+    
     res.json({ message: 'Success', url: fileUrl });
-});
-
-// Public: Serve File
-app.get('/f/:filename', (req, res) => {
-    const filepath = path.join(__dirname, 'uploads', req.params.filename);
-    if (!fs.existsSync(filepath)) return res.status(404).send('File not found');
-    res.setHeader('Content-Disposition', 'inline'); 
-    res.sendFile(filepath);
 });
 
 // Admin: Login
 app.post('/api/login', (req, res) => {
     const { password } = req.body;
-    // Get password from Environment Variable (Secure)
     const adminPassword = process.env.ADMIN_PASSWORD || 'admin123'; 
     
     if (password === adminPassword) {
@@ -90,7 +93,7 @@ app.post('/api/login', (req, res) => {
     }
 });
 
-// Admin: Check Login Status
+// Admin: Check Auth
 app.get('/api/check-auth', (req, res) => {
     res.json({ isAdmin: !!req.session.isAdmin });
 });
@@ -120,7 +123,7 @@ app.get('/api/admin/files', requireAuth, (req, res) => {
             };
         });
         
-        // Sort by newest first
+        // Sort by newest
         fileData.sort((a, b) => new Date(b.created) - new Date(a.created));
         res.json(fileData);
     });
@@ -131,7 +134,7 @@ app.delete('/api/admin/files/:filename', requireAuth, (req, res) => {
     const filepath = path.join(__dirname, 'uploads', req.params.filename);
     
     if (fs.existsSync(filepath)) {
-        fs.unlinkSync(filepath); // Delete the file
+        fs.unlinkSync(filepath);
         res.json({ success: true });
     } else {
         res.status(404).json({ error: 'File not found' });
